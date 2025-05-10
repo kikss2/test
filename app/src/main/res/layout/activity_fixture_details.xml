@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#1E1E1E">
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Include header section -->
+        <include layout="@layout/header_section"/>
+
+        <!-- Include tabs section -->
+        <include layout="@layout/tabs_section"/>
+
+        <!-- Include scores section -->
+        <include layout="@layout/scores_section"/>
+
+        <!-- Include players section -->
+        <include layout="@layout/players_section"/>
+
+        <!-- Include stats section -->
+        <include layout="@layout/stats_section"/>
+
+        <include layout="@layout/h2h_section"/>
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scoresSection"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Quarter Scores"
+        android:textColor="#FF9800"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- 1st Quarter -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1st Quarter"
+        android:textColor="#FF9800"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvHomeTeam1stQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:gravity="end"
+            android:layout_marginEnd="8dp"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_weight="2"
+            android:background="#2D2D2D"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/scoreBar1stQHome"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#FF9800"
+                android:layout_weight="1"/>
+
+            <View
+                android:id="@+id/scoreBar1stQAway"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#1E1E1E"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvAwayTeam1stQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- 2nd Quarter -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="2nd Quarter"
+        android:textColor="#FF9800"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvHomeTeam2ndQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:gravity="end"
+            android:layout_marginEnd="8dp"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_weight="2"
+            android:background="#2D2D2D"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/scoreBar2ndQHome"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#FF9800"
+                android:layout_weight="1"/>
+
+            <View
+                android:id="@+id/scoreBar2ndQAway"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#1E1E1E"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvAwayTeam2ndQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- 3rd Quarter -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="3rd Quarter"
+        android:textColor="#FF9800"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvHomeTeam3rdQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:gravity="end"
+            android:layout_marginEnd="8dp"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_weight="2"
+            android:background="#2D2D2D"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/scoreBar3rdQHome"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#FF9800"
+                android:layout_weight="1"/>
+
+            <View
+                android:id="@+id/scoreBar3rdQAway"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#1E1E1E"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvAwayTeam3rdQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- 4th Quarter -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="4th Quarter"
+        android:textColor="#FF9800"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvHomeTeam4thQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:gravity="end"
+            android:layout_marginEnd="8dp"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_weight="2"
+            android:background="#2D2D2D"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/scoreBar4thQHome"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#FF9800"
+                android:layout_weight="1"/>
+
+            <View
+                android:id="@+id/scoreBar4thQAway"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#1E1E1E"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvAwayTeam4thQ"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginStart="8dp"/>
+
+
+
+    </LinearLayout>
+</LinearLayout>
+

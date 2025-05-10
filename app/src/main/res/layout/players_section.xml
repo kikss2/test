@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/playersSection"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#1E1E1E"
+    android:padding="16dp"
+    android:visibility="gone">
+
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TableLayout
+                android:id="@+id/tableStandings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:stretchColumns="*"
+                android:shrinkColumns="*"
+                android:background="#1E1E1E"
+                android:padding="4dp">
+
+                <!-- Header row -->
+                <TableRow android:background="#1E1E1E" android:padding="8dp">
+                    <TextView
+                        android:text="Team"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:textStyle="bold"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="P"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:textStyle="bold"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="W"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:textStyle="bold"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="L"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:textStyle="bold"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="Pts"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:textStyle="bold"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+                </TableRow>
+
+                <!-- Example dynamic row -->
+                <TableRow android:padding="4dp">
+                    <TextView
+                        android:text="Team A"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="10"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="6"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="4"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+
+                    <TextView
+                        android:text="18"
+                        android:textColor="#FF9800"
+                        android:background="#1E1E1E"
+                        android:padding="6dp"
+                        android:layout_marginEnd="1dp" />
+                </TableRow>
+
+            </TableLayout>
+        </HorizontalScrollView>
+    </ScrollView>
+</LinearLayout>

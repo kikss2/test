@@ -1,0 +1,25 @@
+<resources>
+    <style name="DateTab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#BBBBBB</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:padding">6dp</item>
+    </style>
+
+    <style name="DateTabSelected" parent="DateTab">
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:background">#333333</item>
+    </style>
+
+    <style name="BottomNavItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+</resources>
