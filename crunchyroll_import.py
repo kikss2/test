@@ -168,33 +168,59 @@ def pick_export_file() -> str:
         return files[0]
 
 
-def extract_entries(watchlist: list) -> list:
+def series_ref(item: dict):
     """
-    Normalise watchlist items into (content_id, title) pairs.
-    The export's watchlist items can carry the id in several shapes,
-    so we try the common locations.
+    Resolve a single export item (from watchlist or watch-history) down to the
+    SERIES (or movie_listing) it belongs to, since that's what the watchlist
+    endpoint accepts. Episodes/movies are mapped up to their parent.
+    Returns (content_id, title) or (None, None) if it can't be resolved.
     """
-    entries = []
-    for item in watchlist:
-        panel = item.get("panel") or {}
-        cid = (
-            item.get("content_id")
-            or panel.get("id")
-            or item.get("id")
-            or ""
-        )
-        title = (
-            panel.get("title")
-            or item.get("title")
-            or cid
-        )
-        if cid:
-            entries.append((cid, title))
-    return entries
+    panel = item.get("panel") or item
+    ptype = panel.get("type")
+    ep    = panel.get("episode_metadata") or {}
+    mv    = panel.get("movie_metadata")   or {}
+
+    if ptype == "series":
+        return panel.get("id"), panel.get("title")
+    if ptype == "movie_listing":
+        return panel.get("id"), panel.get("title")
+    if ptype == "episode":
+        return ep.get("series_id"), ep.get("series_title") or panel.get("title")
+    if ptype == "movie":
+        return mv.get("movie_listing_id"), mv.get("movie_listing_title") or panel.get("title")
+
+    # Fallback: dig for a series id wherever it may be
+    sid = (
+        ep.get("series_id")
+        or panel.get("series_id")
+        or item.get("series_id")
+        or item.get("content_id")
+        or panel.get("id")
+        or item.get("id")
+    )
+    title = ep.get("series_title") or panel.get("title") or item.get("title") or sid
+    return sid, title
 
 
-def add_to_watchlist(auth_headers: dict, account_id: str, content_id: str) -> int:
-    """Returns an HTTP-like status: 200 added, 409 already there, other = error."""
+def collect_series(export: dict) -> list:
+    """
+    Build a de-duplicated list of (series_id, title) from BOTH the saved
+    watchlist and the full watch history, so the target account ends up
+    with every show the source account watched or bookmarked.
+    """
+    seen = {}
+    order = []
+    for source in ("watchlist", "watch_history"):
+        for item in export.get(source, []):
+            sid, title = series_ref(item)
+            if sid and sid not in seen:
+                seen[sid] = title
+                order.append(sid)
+    return [(sid, seen[sid]) for sid in order]
+
+
+def add_to_watchlist(auth_headers: dict, account_id: str, content_id: str):
+    """Returns (status_code, response_text)."""
     url = f"{CR_BASE}/content/v2/{account_id}/watchlist"
     resp = requests.post(
         url,
@@ -203,7 +229,7 @@ def add_to_watchlist(auth_headers: dict, account_id: str, content_id: str) -> in
         json={"content_id": content_id},
         timeout=15,
     )
-    return resp.status_code
+    return resp.status_code, resp.text
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -221,8 +247,13 @@ def main():
         print(f"Could not read export file: {e}")
         sys.exit(1)
 
-    entries = extract_entries(export.get("watchlist", []))
-    print(f"\nLoaded {len(entries)} watchlist title(s) from {export_path}\n")
+    entries = collect_series(export)
+    n_wl = len(export.get("watchlist", []))
+    n_wh = len(export.get("watch_history", []))
+    print(f"\nFrom {export_path}:")
+    print(f"  Watchlist items:      {n_wl}")
+    print(f"  Watch-history items:  {n_wh}")
+    print(f"  → {len(entries)} unique series to add to the target account.\n")
     if not entries:
         print("Nothing to import.")
         sys.exit(0)
@@ -234,28 +265,34 @@ def main():
     choice = input("\nEnter 1 or 2: ").strip()
 
     print("\nAuthenticating…")
+    refresh_token = ""   # set when we can mint fresh access tokens later
     try:
         if choice == "2":
             print_etp_rt_instructions()
             pasted = input("Paste the TARGET account's etp_rt cookie (or Bearer token): ").strip()
             if looks_like_jwt(pasted):
                 # User pasted a Bearer access-token JWT instead of the cookie.
-                # Use it directly (note: these expire after a few minutes).
+                # Use it directly (note: these expire after ~5 minutes and
+                # cannot be auto-refreshed).
                 print("(Detected a Bearer access token — using it directly.)")
+                print("  Tip: for many series, paste the 'refresh_token' UUID instead")
+                print("  so the script can auto-refresh and won't expire mid-run.")
                 token = pasted.replace("Bearer ", "").strip()
                 auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
                 me = get_me(auth_headers)
                 account_id = me.get("account_id") or me.get("external_id", "")
             else:
-                token_data   = get_token_from_etp_rt(pasted)
-                auth_headers = auth_headers_from(token_data)
-                account_id   = token_data.get("account_id") or token_data.get("sub", "")
+                token_data    = get_token_from_etp_rt(pasted)
+                auth_headers  = auth_headers_from(token_data)
+                account_id    = token_data.get("account_id") or token_data.get("sub", "")
+                refresh_token = token_data.get("refresh_token") or pasted
         else:
             username = input("Target account email: ").strip()
             password = getpass.getpass("Target account password: ")
-            token_data   = get_token(username, password)
-            auth_headers = auth_headers_from(token_data)
-            account_id   = token_data.get("account_id") or token_data.get("sub", "")
+            token_data    = get_token(username, password)
+            auth_headers  = auth_headers_from(token_data)
+            account_id    = token_data.get("account_id") or token_data.get("sub", "")
+            refresh_token = token_data.get("refresh_token", "")
     except requests.HTTPError as e:
         code = e.response.status_code
         if code == 401:
@@ -278,28 +315,39 @@ def main():
             print("Aborted.")
             sys.exit(0)
 
-    # 3. Add each title
+    # 3. Add each series
     added = skipped = failed = 0
     fail_log = []
+    first_error_shown = False
     print("Importing…")
     for i, (cid, title) in enumerate(entries, 1):
+        status, body = -1, ""
         try:
-            status = add_to_watchlist(auth_headers, account_id, cid)
+            status, body = add_to_watchlist(auth_headers, account_id, cid)
+
+            # Access token expired mid-run → mint a fresh one and retry once.
+            if status == 401 and refresh_token:
+                token_data   = get_token_from_etp_rt(refresh_token)
+                auth_headers = auth_headers_from(token_data)
+                refresh_token = token_data.get("refresh_token") or refresh_token
+                status, body = add_to_watchlist(auth_headers, account_id, cid)
         except requests.RequestException as e:
-            status = -1
-            fail_log.append((title, cid, str(e)))
+            body = str(e)
 
         if status in (200, 201):
             added += 1
             mark = "+ added"
         elif status == 409:
             skipped += 1
-            mark = "= already there"
+            mark = "= already in list"
         else:
             failed += 1
             mark = f"! failed ({status})"
-            if status != -1:
-                fail_log.append((title, cid, f"HTTP {status}"))
+            fail_log.append((title, cid, f"HTTP {status}: {body[:200]}"))
+            if not first_error_shown:
+                # Surface the first failure's body to aid debugging.
+                print(f"      ↳ server said: {body[:300]}")
+                first_error_shown = True
 
         print(f"  [{i}/{len(entries)}] {mark}: {title}")
         time.sleep(0.4)   # be polite to the API
