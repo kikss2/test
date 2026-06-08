@@ -13,9 +13,6 @@ as watched. Re-running is safe (idempotent) — each playhead is simply re-set.
 import json
 import sys
 import glob
-import getpass
-import base64
-import uuid
 import time
 from datetime import datetime, timezone
 
@@ -28,14 +25,8 @@ except ImportError:
 
 # ── Crunchyroll API constants ──────────────────────────────────────────────────
 
-CR_BASE     = "https://www.crunchyroll.com"
-CR_AUTH_URL = f"{CR_BASE}/auth/v1/token"
-
-CR_CLIENT_ID     = "noaihdevm_6iyg0a8l0q"
-CR_CLIENT_SECRET = ""
-
-DEVICE_ID = str(uuid.uuid4())
-LOCALE    = "en-US"
+CR_BASE = "https://www.crunchyroll.com"
+LOCALE  = "en-US"
 
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -45,47 +36,6 @@ HEADERS = {
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
-
-def _basic_creds() -> str:
-    return base64.b64encode(f"{CR_CLIENT_ID}:{CR_CLIENT_SECRET}".encode()).decode()
-
-
-def token_from_etp_rt(etp_rt: str) -> dict:
-    """Exchange the durable etp_rt cookie for a fresh access token."""
-    base = {
-        **HEADERS,
-        "Authorization": f"Basic {_basic_creds()}",
-        "Content-Type":  "application/x-www-form-urlencoded",
-    }
-    resp = requests.post(
-        CR_AUTH_URL,
-        headers={**base, "Cookie": f"etp_rt={etp_rt}"},
-        data={"grant_type": "etp_rt_cookie", "scope": "offline_access"},
-        timeout=15,
-    )
-    if resp.status_code == 200:
-        return resp.json()
-
-    # Fallback: explicit refresh_token grant
-    resp2 = requests.post(
-        CR_AUTH_URL,
-        headers=base,
-        data={"grant_type": "refresh_token", "refresh_token": etp_rt,
-              "scope": "offline_access"},
-        timeout=15,
-    )
-    if resp2.status_code == 200:
-        return resp2.json()
-
-    print(f"\n[!] Token rejected (cookie {resp.status_code}, refresh {resp2.status_code}).")
-    print("    You need the durable etp_rt COOKIE value (see the console one-liner).")
-    sys.exit(1)
-
-
-def looks_like_jwt(value: str) -> bool:
-    v = value.replace("Bearer ", "").strip()
-    return v.startswith("eyJ") and v.count(".") == 2
-
 
 def get_json(url: str, auth_headers: dict, params: dict = None) -> dict:
     resp = requests.get(url, headers=auth_headers, params=params, timeout=15)
@@ -98,91 +48,27 @@ def account_id_from_token(auth_headers: dict) -> str:
     return me.get("account_id") or me.get("external_id", "")
 
 
-def print_etp_rt_oneliner():
-    print("""
-──────────────────────────────────────────────────────────
-Get the durable etp_rt cookie (foolproof method):
-
-  1. In Chrome, logged in to the NEW account on crunchyroll.com,
-     open DevTools → "Console" tab.
-  2. Paste this and press Enter:
-
-       document.cookie.split('; ').find(c => c.startsWith('etp_rt='))?.slice(7)
-
-  3. It prints a value in quotes like  "1713b648-1266-41f4-..."
-     Copy what's INSIDE the quotes and paste it below.
-
-  If it prints  undefined , the cookie is HttpOnly — instead use:
-     DevTools → Application → Cookies → www.crunchyroll.com → etp_rt → Value
-──────────────────────────────────────────────────────────
-""")
-
-
-# ── Auth session with auto-refresh ─────────────────────────────────────────────
-
 class Session:
-    """Holds auth headers and transparently refreshes the access token."""
-
     def __init__(self):
-        self.headers = {}
+        self.headers    = {}
         self.account_id = ""
-        self.refresh_token = ""   # etp_rt or refresh_token; empty = cannot refresh
 
     def login_interactive(self):
-        print("Log in to the TARGET account (the one to receive the progress).")
-        print("  1) Email + Password")
-        print("  2) etp_rt cookie  (recommended — lets the script auto-refresh)")
-        choice = input("\nEnter 1 or 2: ").strip()
-
-        if choice == "1":
-            username = input("Target account email: ").strip()
-            password = getpass.getpass("Target account password: ")
-            data = self._password_login(username, password)
-            self._apply(data)
-            self.refresh_token = data.get("refresh_token", "")
-        else:
-            print_etp_rt_oneliner()
-            pasted = input("Paste the etp_rt cookie value (or a Bearer token): ").strip()
-            if looks_like_jwt(pasted):
-                print("(Using the Bearer token directly. NOTE: it expires in ~5 min;")
-                print(" if the run is interrupted near the end, grab a fresh one and")
-                print(" re-run — it's safe to repeat.)")
-                token = pasted.replace("Bearer ", "").strip()
-                self.headers = {**HEADERS, "Authorization": f"Bearer {token}"}
-                self.account_id = account_id_from_token(self.headers)
-                self.refresh_token = ""
-            else:
-                data = token_from_etp_rt(pasted)
-                self._apply(data)
-                self.refresh_token = data.get("refresh_token") or pasted
-
-    def _password_login(self, username, password):
-        resp = requests.post(
-            CR_AUTH_URL,
-            headers={**HEADERS, "Authorization": f"Basic {_basic_creds()}",
-                     "Content-Type": "application/x-www-form-urlencoded"},
-            data={"username": username, "password": password,
-                  "grant_type": "password", "scope": "offline_access",
-                  "device_id": DEVICE_ID},
-            timeout=15,
-        )
-        if resp.status_code == 401:
-            print("\n[!] Login failed (401): wrong password or social-login account.")
+        print("""
+Get your Bearer token:
+  1. In Chrome (logged into the NEW account), open DevTools → Network tab.
+  2. Refresh the crunchyroll.com page.
+  3. In the filter box type: token
+  4. Click the 'token' request → Preview tab.
+  5. Copy the full value of  access_token  (starts with eyJ...).
+""")
+        token = input("Paste the access_token here: ").strip()
+        token = token.replace("Bearer ", "").strip()
+        if not token.startswith("eyJ"):
+            print("[!] That doesn't look like a Bearer token (should start with eyJ).")
             sys.exit(1)
-        resp.raise_for_status()
-        return resp.json()
-
-    def _apply(self, token_data: dict):
-        self.headers = {**HEADERS, "Authorization": f"Bearer {token_data['access_token']}"}
-        self.account_id = token_data.get("account_id") or token_data.get("sub", "")
-
-    def refresh(self) -> bool:
-        if not self.refresh_token:
-            return False
-        data = token_from_etp_rt(self.refresh_token)
-        self._apply(data)
-        self.refresh_token = data.get("refresh_token") or self.refresh_token
-        return True
+        self.headers    = {**HEADERS, "Authorization": f"Bearer {token}"}
+        self.account_id = account_id_from_token(self.headers)
 
 
 # ── Playhead write ─────────────────────────────────────────────────────────────
@@ -201,8 +87,6 @@ def set_playhead(sess: Session, content_id: str, playhead: int):
         )
 
     resp = _post()
-    if resp.status_code == 401 and sess.refresh():
-        resp = _post()
     return resp.status_code, resp.text
 
 
