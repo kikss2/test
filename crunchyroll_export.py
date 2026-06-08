@@ -10,7 +10,7 @@ import getpass
 import base64
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     import requests
@@ -221,7 +221,7 @@ def main():
     print(f"Logged in. Account ID: {account_id}\n")
 
     export = {
-        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "account_id":  account_id,
     }
 
@@ -263,7 +263,7 @@ def main():
         export["profiles"] = []
 
     # Write output
-    timestamp   = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp   = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     output_file = f"crunchyroll_export_{timestamp}.json"
 
     with open(output_file, "w", encoding="utf-8") as f:
