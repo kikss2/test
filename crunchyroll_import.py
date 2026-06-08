@@ -334,7 +334,8 @@ def main():
         except requests.RequestException as e:
             body = str(e)
 
-        if status in (200, 201):
+        if status in (200, 201, 204):
+            # 204 No Content is Crunchyroll's success response for this endpoint.
             added += 1
             mark = "+ added"
         elif status == 409:
