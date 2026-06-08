@@ -21,17 +21,19 @@ except ImportError:
 
 # ── Crunchyroll API constants ──────────────────────────────────────────────────
 
-CR_BASE     = "https://beta-api.crunchyroll.com"
+CR_BASE     = "https://www.crunchyroll.com"
 CR_AUTH_URL = f"{CR_BASE}/auth/v1/token"
 
-# Android app client credentials (public, from the official APK)
-CR_CLIENT_ID     = "cr_android"
-CR_CLIENT_SECRET = "ouMuaBdMOqPyjQkFT7MbIhH0N4OTBgFsrOFajFqmvTI="
+# Public web client credentials (client_id with empty secret), exactly as the
+# crunchyroll.com web app sends them: Basic base64("<client_id>:")
+CR_CLIENT_ID     = "noaihdevm_6iyg0a8l0q"
+CR_CLIENT_SECRET = ""
 
 DEVICE_ID = str(uuid.uuid4())
 
 HEADERS = {
-    "User-Agent":   "Crunchyroll/3.46.1 Android/13 okhttp/4.12.0",
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"),
     "Content-Type": "application/x-www-form-urlencoded",
     "Accept":       "application/json",
 }
@@ -39,72 +41,69 @@ HEADERS = {
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-def get_anon_token() -> str:
-    """Get an anonymous ETP token first — required before password login."""
-    creds = base64.b64encode(
-        f"{CR_CLIENT_ID}:{CR_CLIENT_SECRET}".encode()
-    ).decode()
-    resp = requests.post(
-        CR_AUTH_URL,
-        headers={**HEADERS, "Authorization": f"Basic {creds}"},
-        data={"grant_type": "client_id", "scope": "offline_access"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json().get("access_token", "")
+def _basic_creds() -> str:
+    return base64.b64encode(f"{CR_CLIENT_ID}:{CR_CLIENT_SECRET}".encode()).decode()
 
 
-def get_token(username: str, password: str) -> dict:
-    creds = base64.b64encode(
-        f"{CR_CLIENT_ID}:{CR_CLIENT_SECRET}".encode()
-    ).decode()
-
-    # Step 1: anonymous token (needed as ETP-Anonymous header)
-    anon_token = get_anon_token()
-
-    # Step 2: exchange for a real user token
+def get_token_from_etp_rt(etp_rt: str) -> dict:
+    """
+    Exchange the browser's `etp_rt` cookie for a real access token.
+    This is how the web app keeps you logged in, and it works for accounts
+    created via Google / Facebook / Apple where there is no password.
+    """
     resp = requests.post(
         CR_AUTH_URL,
         headers={
             **HEADERS,
-            "Authorization":    f"Basic {creds}",
-            "ETP-Anonymous-ID": DEVICE_ID,
+            "Authorization": f"Basic {_basic_creds()}",
+            "Cookie":        f"etp_rt={etp_rt}",
         },
-        data={
-            "username":    username,
-            "password":    password,
-            "grant_type":  "password",
-            "scope":       "offline_access",
-            "device_id":   DEVICE_ID,
-            "device_name": "Python exporter",
-            "device_type": "com.crunchyroll.crunchyroid",
-        },
+        data={"grant_type": "etp_rt_cookie", "scope": "offline_access"},
         timeout=15,
     )
-
-    if resp.status_code == 401:
-        print("\n[!] Login failed (401).")
-        print("    Possible reasons:")
-        print("    - Wrong email or password")
-        print("    - You signed up with Google/Facebook/Apple (social login)")
-        print("      → In that case, see the instructions below to use a browser token instead.")
-        print_browser_token_instructions()
+    if resp.status_code in (400, 401):
+        print(f"\n[!] etp_rt token rejected ({resp.status_code}).")
+        print("    The cookie may be expired or copied incompletely.")
+        print("    Re-copy the FULL value of the etp_rt cookie and try again.")
         sys.exit(1)
-
     resp.raise_for_status()
     return resp.json()
 
 
-def print_browser_token_instructions():
+def get_token(username: str, password: str) -> dict:
+    resp = requests.post(
+        CR_AUTH_URL,
+        headers={**HEADERS, "Authorization": f"Basic {_basic_creds()}"},
+        data={
+            "username":   username,
+            "password":   password,
+            "grant_type": "password",
+            "scope":      "offline_access",
+            "device_id":  DEVICE_ID,
+        },
+        timeout=15,
+    )
+    if resp.status_code == 401:
+        print("\n[!] Login failed (401): wrong email/password, or this is a")
+        print("    social-login account (Google/Facebook/Apple). For social")
+        print("    logins, re-run and choose option 2 (etp_rt cookie).")
+        sys.exit(1)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def print_etp_rt_instructions():
     print("""
 ──────────────────────────────────────────────────────────
-If you use Google / Facebook / Apple login, do this instead:
+Get your etp_rt cookie from the browser:
 
-  1. Open Chrome/Firefox and log in to crunchyroll.com
-  2. Press F12 → go to the "Network" tab
-  3. Refresh the page, then click any request to crunchyroll.com
-  4. Look at the Request Headers for:  Authorization: Bearer <token>
-  5. Copy that token and paste it when prompted below.
+  1. Log in to crunchyroll.com in Chrome.
+  2. Open DevTools (Ctrl+Shift+I) → "Application" tab.
+  3. Left sidebar: Storage → Cookies → https://www.crunchyroll.com
+  4. Find the row named  etp_rt
+  5. Double-click its Value and copy it (looks like:
+     1713b648-1266-41f4-9209-aa6dd4d16f80 ).
+  6. Paste it below.
 ──────────────────────────────────────────────────────────
 """)
 
@@ -199,37 +198,26 @@ def main():
     print("=== Crunchyroll Account Exporter ===\n")
     print("How do you log in to Crunchyroll?")
     print("  1) Email + Password")
-    print("  2) Google / Facebook / Apple (social login) → needs browser token")
+    print("  2) Google / Facebook / Apple, OR you're not sure (uses etp_rt cookie)")
     choice = input("\nEnter 1 or 2: ").strip()
 
-    auth_headers = {}
-    account_id   = ""
+    print("\nAuthenticating…")
+    try:
+        if choice == "2":
+            print_etp_rt_instructions()
+            etp_rt = input("Paste your etp_rt cookie value here: ").strip()
+            token_data = get_token_from_etp_rt(etp_rt)
+        else:
+            print("\nYour credentials are used ONLY for authentication and are never stored.\n")
+            username = input("Crunchyroll email: ").strip()
+            password = getpass.getpass("Password: ")
+            token_data = get_token(username, password)
+    except requests.HTTPError as e:
+        print(f"Login failed: {e.response.status_code} – {e.response.text}")
+        sys.exit(1)
 
-    if choice == "2":
-        print_browser_token_instructions()
-        raw_token = input("Paste your Bearer token here: ").strip()
-        raw_token = raw_token.replace("Bearer ", "").strip()
-        auth_headers = {**HEADERS, "Authorization": f"Bearer {raw_token}"}
-        # Fetch account_id from the token itself
-        try:
-            me = get_json(f"{CR_BASE}/accounts/v1/me", auth_headers)
-            account_id = me.get("account_id") or me.get("external_id", "")
-        except requests.HTTPError as e:
-            print(f"Token rejected: {e.response.status_code}. Make sure you copied the full token.")
-            sys.exit(1)
-    else:
-        print("\nYour credentials are used ONLY for authentication and are never stored.\n")
-        username = input("Crunchyroll email: ").strip()
-        password = getpass.getpass("Password: ")
-
-        print("\nAuthenticating…")
-        try:
-            token_data   = get_token(username, password)
-            auth_headers = bearer(token_data)
-            account_id   = token_data.get("account_id") or token_data.get("sub", "")
-        except requests.HTTPError as e:
-            print(f"Login failed: {e.response.status_code} – {e.response.text}")
-            sys.exit(1)
+    auth_headers = bearer(token_data)
+    account_id   = token_data.get("account_id") or token_data.get("sub", "")
     print(f"Logged in. Account ID: {account_id}\n")
 
     export = {
