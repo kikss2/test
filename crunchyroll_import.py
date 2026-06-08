@@ -49,22 +49,45 @@ def _basic_creds() -> str:
 
 
 def get_token_from_etp_rt(etp_rt: str) -> dict:
+    """
+    Exchange an etp_rt / refresh_token UUID for a fresh access token.
+    Tries the cookie grant first, then the explicit refresh_token grant.
+    """
+    base = {
+        **HEADERS,
+        "Authorization": f"Basic {_basic_creds()}",
+        "Content-Type":  "application/x-www-form-urlencoded",
+    }
+
+    # Attempt 1: etp_rt_cookie grant (how the web app refreshes)
     resp = requests.post(
         CR_AUTH_URL,
-        headers={
-            **HEADERS,
-            "Authorization": f"Basic {_basic_creds()}",
-            "Content-Type":  "application/x-www-form-urlencoded",
-            "Cookie":        f"etp_rt={etp_rt}",
-        },
+        headers={**base, "Cookie": f"etp_rt={etp_rt}"},
         data={"grant_type": "etp_rt_cookie", "scope": "offline_access"},
         timeout=15,
     )
-    if resp.status_code in (400, 401):
-        print(f"\n[!] etp_rt token rejected ({resp.status_code}). Re-copy the full cookie value.")
-        sys.exit(1)
-    resp.raise_for_status()
-    return resp.json()
+    if resp.status_code == 200:
+        return resp.json()
+
+    # Attempt 2: explicit refresh_token grant
+    resp2 = requests.post(
+        CR_AUTH_URL,
+        headers=base,
+        data={
+            "grant_type":    "refresh_token",
+            "refresh_token": etp_rt,
+            "scope":         "offline_access",
+        },
+        timeout=15,
+    )
+    if resp2.status_code == 200:
+        return resp2.json()
+
+    print(f"\n[!] Token rejected (cookie grant {resp.status_code}, "
+          f"refresh grant {resp2.status_code}).")
+    print("    Paste the 'refresh_token' UUID from the token response Preview,")
+    print("    e.g. 2c4ce0f7-7567-41a3-9686-3d34e0b3a4d2 (NOT the long eyJ... token).")
+    sys.exit(1)
 
 
 def get_token(username: str, password: str) -> dict:
