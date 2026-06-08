@@ -121,18 +121,59 @@ def get_json(url: str, auth_headers: dict, params: dict = None) -> dict:
 
 
 def paginate(url: str, auth_headers: dict, extra_params: dict = None, page_size: int = 100) -> list:
-    """Fetch all pages of a paginated endpoint."""
+    """
+    Fetch all pages of a paginated Crunchyroll endpoint.
+
+    Crunchyroll's content/v2 list endpoints (watch-history, watchlist, etc.)
+    paginate with `page` + `page_size` (and expose `total` / `next_page`),
+    NOT the `n`/`start` scheme. We mirror that here, de-duplicate by item id,
+    and stop as soon as a page yields no NEW items — so even if the server
+    ignores the paging params we return cleanly instead of looping forever.
+    """
     results = []
-    start = 0
+    seen = set()
+    page = 1
+    next_url = None
+    safety = 0
     while True:
-        params = {"n": page_size, "start": start, **(extra_params or {})}
-        data = get_json(url, auth_headers, params)
-        items = data.get("items") or data.get("data") or []
-        results.extend(items)
-        total = data.get("total", len(results))
-        start += len(items)
-        if start >= total or not items:
+        safety += 1
+        if safety > 500:
             break
+
+        if next_url:
+            data = get_json(next_url, auth_headers)
+        else:
+            params = {
+                "page_size": page_size,
+                "page":      page,
+                "start":     len(results),   # some endpoints honour start too
+                "locale":    "en-US",
+                **(extra_params or {}),
+            }
+            data = get_json(url, auth_headers, params)
+
+        items = data.get("data") or data.get("items") or []
+        new_items = 0
+        for it in items:
+            key = it.get("id") or it.get("content_id") or repr(it)
+            if key not in seen:
+                seen.add(key)
+                results.append(it)
+                new_items += 1
+
+        total    = data.get("total")
+        next_page = data.get("next_page") or (data.get("__links__", {}) or {}).get("next_page")
+
+        if not items or new_items == 0:
+            break
+        if total is not None and len(results) >= total:
+            break
+
+        if next_page:
+            next_url = next_page if next_page.startswith("http") else CR_BASE + next_page
+        else:
+            next_url = None
+            page += 1
         time.sleep(0.3)   # be polite to the API
     return results
 
@@ -198,27 +239,37 @@ def main():
     print("=== Crunchyroll Account Exporter ===\n")
     print("How do you log in to Crunchyroll?")
     print("  1) Email + Password")
-    print("  2) Google / Facebook / Apple, OR you're not sure (uses etp_rt cookie)")
+    print("  2) Paste a Bearer access_token  (most reliable — Network → token → Preview)")
     choice = input("\nEnter 1 or 2: ").strip()
 
     print("\nAuthenticating…")
     try:
         if choice == "2":
-            print_etp_rt_instructions()
-            etp_rt = input("Paste your etp_rt cookie value here: ").strip()
-            token_data = get_token_from_etp_rt(etp_rt)
+            print("""
+Get your access_token:
+  1. In Chrome (logged into the account you want to export), DevTools → Network.
+  2. Refresh crunchyroll.com, filter the requests by:  token
+  3. Click the 'token' request → Preview → copy the  access_token  (eyJ...).
+""")
+            token = input("Paste the access_token here: ").strip().replace("Bearer ", "").strip()
+            if not token.startswith("eyJ"):
+                print("[!] That doesn't look like a Bearer token (should start with eyJ).")
+                sys.exit(1)
+            auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+            me = get_json(f"{CR_BASE}/accounts/v1/me", auth_headers)
+            account_id = me.get("account_id") or me.get("external_id", "")
+            print(f"Logged in. Account ID: {account_id}\n")
         else:
             print("\nYour credentials are used ONLY for authentication and are never stored.\n")
             username = input("Crunchyroll email: ").strip()
             password = getpass.getpass("Password: ")
-            token_data = get_token(username, password)
+            token_data   = get_token(username, password)
+            auth_headers = bearer(token_data)
+            account_id   = token_data.get("account_id") or token_data.get("sub", "")
+            print(f"Logged in. Account ID: {account_id}\n")
     except requests.HTTPError as e:
         print(f"Login failed: {e.response.status_code} – {e.response.text}")
         sys.exit(1)
-
-    auth_headers = bearer(token_data)
-    account_id   = token_data.get("account_id") or token_data.get("sub", "")
-    print(f"Logged in. Account ID: {account_id}\n")
 
     export = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
