@@ -110,6 +110,22 @@ def auth_headers_from(token_data: dict) -> dict:
     return {**HEADERS, "Authorization": f"Bearer {token_data['access_token']}"}
 
 
+def looks_like_jwt(value: str) -> bool:
+    """A Bearer access token is a JWT: three base64 parts split by dots."""
+    v = value.replace("Bearer ", "").strip()
+    return v.startswith("eyJ") and v.count(".") == 2
+
+
+def get_me(auth_headers: dict) -> dict:
+    return get_json(f"{CR_BASE}/accounts/v1/me", auth_headers)
+
+
+def get_json(url: str, auth_headers: dict, params: dict = None) -> dict:
+    resp = requests.get(url, headers=auth_headers, params=params, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def pick_export_file() -> str:
@@ -198,18 +214,36 @@ def main():
     try:
         if choice == "2":
             print_etp_rt_instructions()
-            etp_rt = input("Paste the TARGET account's etp_rt cookie value: ").strip()
-            token_data = get_token_from_etp_rt(etp_rt)
+            pasted = input("Paste the TARGET account's etp_rt cookie (or Bearer token): ").strip()
+            if looks_like_jwt(pasted):
+                # User pasted a Bearer access-token JWT instead of the cookie.
+                # Use it directly (note: these expire after a few minutes).
+                print("(Detected a Bearer access token — using it directly.)")
+                token = pasted.replace("Bearer ", "").strip()
+                auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+                me = get_me(auth_headers)
+                account_id = me.get("account_id") or me.get("external_id", "")
+            else:
+                token_data   = get_token_from_etp_rt(pasted)
+                auth_headers = auth_headers_from(token_data)
+                account_id   = token_data.get("account_id") or token_data.get("sub", "")
         else:
             username = input("Target account email: ").strip()
             password = getpass.getpass("Target account password: ")
-            token_data = get_token(username, password)
+            token_data   = get_token(username, password)
+            auth_headers = auth_headers_from(token_data)
+            account_id   = token_data.get("account_id") or token_data.get("sub", "")
     except requests.HTTPError as e:
-        print(f"Login failed: {e.response.status_code} – {e.response.text}")
+        code = e.response.status_code
+        if code == 401:
+            print("Login failed (401). If you pasted a Bearer token it has likely")
+            print("expired — Bearer tokens last only a few minutes. Either paste a")
+            print("fresh one, or better: copy the long-lived 'etp_rt' cookie value")
+            print("(a short UUID, NOT the long eyJ... token).")
+        else:
+            print(f"Login failed: {code} – {e.response.text}")
         sys.exit(1)
 
-    auth_headers = auth_headers_from(token_data)
-    account_id   = token_data.get("account_id") or token_data.get("sub", "")
     print(f"Logged in to target. Account ID: {account_id}\n")
 
     # Safety check: don't import into the same account you exported from
