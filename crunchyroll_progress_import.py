@@ -71,6 +71,20 @@ Get your Bearer token:
         self.account_id = account_id_from_token(self.headers)
 
 
+def prompt_fresh_token(sess: "Session") -> bool:
+    """Called when the token expires mid-run. Get a fresh access_token and
+    keep going. Press Enter alone to stop. Returns True if a token was set."""
+    print("\n[!] Access token expired. Grab a FRESH access_token:")
+    print("    Refresh crunchyroll.com → Network → 'token' → Preview → access_token")
+    print("    (Press Enter with nothing to stop here; already-done episodes are kept.)")
+    token = input("Fresh access_token: ").strip().replace("Bearer ", "").strip()
+    if not token.startswith("eyJ"):
+        return False
+    sess.headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+    print("    ↳ resuming…")
+    return True
+
+
 # ── Playhead write ─────────────────────────────────────────────────────────────
 
 def set_playhead(sess: Session, content_id: str, playhead: int):
@@ -94,11 +108,12 @@ def set_playhead(sess: Session, content_id: str, playhead: int):
 
 def extract_history(watch_history: list) -> list:
     """
-    Turn watch-history items into (episode_id, target_playhead, label) records.
+    Turn watch-history items into de-duplicated
+    (episode_id, target_playhead, label, fully) records.
     target_playhead = recorded position, but for fully-watched episodes we push
     it to (duration - 2s) so the server marks them complete.
     """
-    out = []
+    by_id = {}
     for item in watch_history:
         panel = item.get("panel") or {}
         ep_id = item.get("content_id") or item.get("id") or panel.get("id")
@@ -119,10 +134,14 @@ def extract_history(watch_history: list) -> list:
         series = meta.get("series_title") or ""
         epno   = meta.get("episode_number")
         eptit  = panel.get("title") or ""
-        label  = f"{series} — E{epno}: {eptit}" if series else eptit or ep_id
+        label  = f"{series} — E{epno}: {eptit}" if series else (eptit or ep_id)
 
-        out.append((ep_id, target, label, fully))
-    return out
+        # De-duplicate by episode id, keeping the furthest progress / watched flag.
+        prev = by_id.get(ep_id)
+        if prev is None or target > prev[1] or (fully and not prev[3]):
+            by_id[ep_id] = (ep_id, target, label, fully or (prev[3] if prev else False))
+
+    return list(by_id.values())
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -152,8 +171,15 @@ def main():
         print(f"Could not read export file: {e}")
         sys.exit(1)
 
+    raw = len(export.get("watch_history", []))
     records = extract_history(export.get("watch_history", []))
-    print(f"\nLoaded {len(records)} watched-episode record(s) from {path}\n")
+    print(f"\nFrom {path}:")
+    print(f"  Raw history entries:  {raw}")
+    print(f"  Unique episodes:      {len(records)}")
+    print("  Sample:")
+    for ep_id, target, label, fully in records[:8]:
+        print(f"    - {label}")
+    print()
     if not records:
         print("No watch history to import.")
         sys.exit(0)
@@ -180,6 +206,10 @@ def main():
     for i, (ep_id, target, label, fully) in enumerate(records, 1):
         try:
             status, body = set_playhead(sess, ep_id, target)
+            # Access token expired mid-run → ask for a fresh one and retry.
+            if status == 401:
+                if prompt_fresh_token(sess):
+                    status, body = set_playhead(sess, ep_id, target)
         except requests.RequestException as e:
             status, body = -1, str(e)
 
@@ -197,7 +227,7 @@ def main():
 
         if i % 25 == 0 or i == len(records):
             print(f"  [{i}/{len(records)}] {tag}: {label}")
-        time.sleep(0.2)
+        time.sleep(0.1)
 
     print("\n──────────── Progress import complete ────────────")
     print(f"  Restored: {ok}")
