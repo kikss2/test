@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+crunchyroll_export_*.json
